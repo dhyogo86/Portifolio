@@ -1,12 +1,10 @@
---use DL_NECXT
-
-ALTER FUNCTION dbo.GerarUpdateInsert
+ALTER FUNCTION [dbo].[GerarUpdateInsert]
 (
     @TabelaA NVARCHAR(128),					-- Nome da primeira tabela (destino)
     @TabelaB NVARCHAR(128),					-- Nome da segunda tabela (origem)
-    @Chaves NVARCHAR(MAX),					-- Chave(s) de compara��o (separadas por v�rgula)
+    @Chaves NVARCHAR(MAX),					-- Chave(s) de comparação (separadas por vírgula)
     @Tipo INT,								-- 1 para UPDATE, 2 para INSERT
-    @IgnorarColunas NVARCHAR(MAX) = NULL	-- Colunas a serem ignoradas (separadas por v�rgula)
+    @IgnorarColunas NVARCHAR(MAX) = NULL	-- Colunas a serem ignoradas (separadas por vírgula)
 )
 RETURNS NVARCHAR(MAX)
 AS
@@ -16,6 +14,16 @@ BEGIN
             @SQL_RESULT NVARCHAR(MAX),
             @SchemaA NVARCHAR(128);
 
+    -- Obtém o schema das tabelas
+    SELECT 
+        @SchemaA = TABLE_SCHEMA
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_NAME = @TabelaA;
+
+    --SELECT 
+    --    @SchemaB = TABLE_SCHEMA
+    --FROM INFORMATION_SCHEMA.TABLES
+    --WHERE TABLE_NAME = @TabelaB;
 
     ;WITH Colunas AS (
         SELECT COLUMN_NAME
@@ -36,27 +44,27 @@ BEGIN
             FROM Colunas A
         );
 
-    -- Monta a instru��o UPDATE
+    -- Monta a instrução UPDATE
     SET @SQL_UPDATE = 
         'UPDATE A SET ' + @SQL_UPDATE + 
-        ' FROM ' +  QUOTENAME(@TabelaA) + ' A' +
+        ' FROM ' + QUOTENAME(@SchemaA) + '.' + QUOTENAME(@TabelaA) + ' A' +
         ' JOIN ' +  QUOTENAME(@TabelaB) + ' B' +
         ' ON ' + (
             SELECT STRING_AGG(CAST('A.' + QUOTENAME(value) + ' = B.' + QUOTENAME(value) AS NVARCHAR(MAX)), ' AND ')
             FROM STRING_SPLIT(@Chaves, ',')
         );
 
-    -- Monta a instru��o INSERT
+    -- Monta a instrução INSERT
     SET @SQL_INSERT = 
-        'INSERT INTO ' +  QUOTENAME(@TabelaA) + ' (' + @SQL_INSERT + ')' +
+        'INSERT INTO ' + QUOTENAME(@SchemaA) + '.' + QUOTENAME(@TabelaA) + ' (' + @SQL_INSERT + ')' +
         ' SELECT ' + @SQL_INSERT +
         ' FROM ' + QUOTENAME(@TabelaB) + ' B';
 
-    -- Adiciona a cl�usula NOT EXISTS, se necess�rio
+    -- Adiciona a cláusula NOT EXISTS, se necessário
     IF @Chaves IS NOT NULL
     BEGIN
         SET @SQL_INSERT = @SQL_INSERT +
-            ' WHERE NOT EXISTS (SELECT 1 FROM ' +  QUOTENAME(@TabelaA) + ' A WHERE ' + 
+            ' WHERE NOT EXISTS (SELECT 1 FROM ' + QUOTENAME(@SchemaA) + '.' + QUOTENAME(@TabelaA) + ' A WHERE ' + 
             (
                 SELECT STRING_AGG(CAST('A.' + QUOTENAME(value) + ' = B.' + QUOTENAME(value) AS NVARCHAR(MAX)), ' AND ')
                 FROM STRING_SPLIT(@Chaves, ',')
@@ -69,8 +77,7 @@ BEGIN
     ELSE IF @Tipo = 2
         SET @SQL_RESULT = @SQL_INSERT;
     ELSE
-        SET @SQL_RESULT = 'Par�metro @Tipo inv�lido. Use 1 para UPDATE ou 2 para INSERT.';
+        SET @SQL_RESULT = 'Parâmetro @Tipo inválido. Use 1 para UPDATE ou 2 para INSERT.';
 
     RETURN @SQL_RESULT;
 END
-GO
